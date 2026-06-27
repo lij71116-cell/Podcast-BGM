@@ -49,6 +49,7 @@ class SessionMiddleware(BaseHTTPMiddleware):
                 value=session_id,
                 httponly=True,
                 samesite="lax",
+                secure=not settings.debug,
                 max_age=SESSION_MAX_AGE_SECONDS,
                 path="/",
             )

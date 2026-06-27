@@ -1,0 +1,39 @@
+# Fly.io 后端部署配置
+# 首次部署见 docs/deploy.md
+
+app = "podcast-flow-api"
+primary_region = "sin"
+
+[build]
+  dockerfile = "backend/Dockerfile"
+
+[env]
+  HOST = "0.0.0.0"
+  DEBUG = "false"
+  DATABASE_PATH = "/data/podcast_flow.db"
+  STORAGE_ROOT = "/data/storage"
+  FFMPEG_PATH = "ffmpeg"
+  FFPROBE_PATH = "ffprobe"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    grace_period = "30s"
+    interval = "30s"
+    method = "GET"
+    path = "/health"
+    timeout = "5s"
+
+[[mounts]]
+  source = "podcast_data"
+  destination = "/data"
+
+[[vm]]
+  memory = "512mb"
+  cpu_kind = "shared"
+  cpus = 1

@@ -1,5 +1,6 @@
-"""应用配置：显式解析 backend/.env，经 ConfigManager 注入 AppSettings。"""
+"""应用配置：backend/.env + 进程环境变量，经 ConfigManager 注入 AppSettings。"""
 
+import os
 from pathlib import Path
 from typing import Any
 
@@ -35,7 +36,7 @@ _DEFAULT_CORS = [
 
 
 class AppSettings(BaseSettings):
-    """运行时配置（来自 backend/.env，不读取进程环境变量）。"""
+    """运行时配置（backend/.env 为默认，进程环境变量可覆盖）。"""
 
     host: str = "127.0.0.1"
     port: int = 8099
@@ -76,19 +77,32 @@ def _resolve_project_path(project_root: Path, raw_path: str) -> str:
     return str(path.resolve())
 
 
+def _merge_env_sources(env_path: Path) -> dict[str, str]:
+    """合并 .env 与进程环境变量（后者优先，便于 Fly.io / Docker 注入）。"""
+    raw: dict[str, str | None] = dict(dotenv_values(env_path)) if env_path.exists() else {}
+    merged: dict[str, str] = {
+        key: value for key, value in raw.items() if value is not None and value != ""
+    }
+    for env_key in _ENV_KEY_MAP:
+        env_value = os.environ.get(env_key)
+        if env_value is not None and env_value != "":
+            merged[env_key] = env_value
+    return merged
+
+
 def load_settings(env_path: Path | None = None) -> AppSettings:
-    """从 backend/.env 加载配置；文件缺失时使用默认值。"""
+    """从 backend/.env 与进程环境变量加载配置；文件缺失时使用默认值。"""
     global _settings  # noqa: PLW0603
 
     if env_path is None:
         env_path = Path(__file__).parent.parent.parent / ".env"
 
     project_root = env_path.parent.parent
-    raw: dict[str, str | None] = dict(dotenv_values(env_path)) if env_path.exists() else {}
+    merged = _merge_env_sources(env_path)
 
     settings_dict: dict[str, Any] = {}
     for env_key, field_name in _ENV_KEY_MAP.items():
-        raw_value = raw.get(env_key)
+        raw_value = merged.get(env_key)
         if raw_value is not None and raw_value != "":
             settings_dict[field_name] = _coerce(env_key, raw_value)
 

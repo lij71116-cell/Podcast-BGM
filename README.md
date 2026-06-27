@@ -131,11 +131,24 @@ npm run build
 
 ---
 
+## 生产部署（Vercel + Fly.io）
+
+推荐架构：前端 **Vercel**，后端 **Fly.io**（Docker + FFmpeg + 持久 Volume），Vercel 将 `/api/*` 代理到 Fly 后端，浏览器同源访问 Cookie Session 无需额外 CORS 改造。
+
+完整步骤见 **[`docs/deploy.md`](docs/deploy.md)**，概要：
+
+1. **Fly.io**：`fly volumes create` → `fly secrets set SESSION_SECRET=...` → `fly deploy`
+2. **Vercel**：Root Directory = `frontend`，环境变量 `VITE_USE_MOCK=false`、`VITE_API_BASE_URL=/api`
+3. 将 `frontend/vercel.json` 中的 Fly 域名改为你实际的应用地址
+
+---
+
 ## 文档索引
 
 | 文档 | 说明 |
 |------|------|
 | [`docs/startup.md`](docs/startup.md) | 启动命令、E2E 验收清单、FAQ |
+| [`docs/deploy.md`](docs/deploy.md) | Vercel + Fly.io 生产部署 |
 | [`docs/PRD.md`](docs/PRD.md) | 产品需求定稿 |
 | [`docs/api-contracts.md`](docs/api-contracts.md) | API 契约（唯一权威源） |
 | [`docs/Plan.md`](docs/Plan.md) | 开发计划与功能进度 |
