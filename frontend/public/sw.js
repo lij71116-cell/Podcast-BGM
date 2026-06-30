@@ -1,4 +1,4 @@
-const CACHE_NAME = 'podcast-flow-static-v2'
+const CACHE_NAME = 'podcast-flow-static-v3'
 const PRECACHE_URLS = ['/', '/index.html', '/manifest.webmanifest']
 
 self.addEventListener('install', (event) => {

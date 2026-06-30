@@ -6,12 +6,12 @@
   right: 0;
   background: var(--text);
   color: #fff;
-  padding: 14px 18px;
+  padding: 12px 14px;
   font-size: 13px;
   z-index: 70;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
 }
 
 .pwa-bar.visible {
@@ -22,11 +22,32 @@
   bottom: var(--player-h);
 }
 
+.pwa-bar-text {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  color: inherit;
+  text-align: left;
+  padding: 0;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1.45;
+  font-family: inherit;
+}
+
+.pwa-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.pwa-install,
 .pwa-dismiss {
-  background: rgba(255, 255, 255, 0.15);
   border: none;
   color: #fff;
-  padding: 7px 14px;
+  padding: 7px 12px;
   border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: 12px;
@@ -35,8 +56,47 @@
   white-space: nowrap;
 }
 
+.pwa-install {
+  background: var(--accent, #1a3c34);
+}
+
+.pwa-install:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.pwa-install:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.pwa-dismiss {
+  background: rgba(255, 255, 255, 0.15);
+}
+
 .pwa-dismiss:hover {
   background: rgba(255, 255, 255, 0.25);
+}
+
+.pwa-guide-steps {
+  margin: 0 0 12px;
+  padding-left: 20px;
+  line-height: 1.6;
+}
+
+.pwa-guide-steps li + li {
+  margin-top: 10px;
+}
+
+.pwa-guide-icon {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 16px;
+}
+
+.pwa-guide-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-secondary, #666);
 }
 
 @media (min-width: 1024px) {

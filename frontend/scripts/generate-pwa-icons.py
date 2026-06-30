@@ -17,7 +17,7 @@ EXPORTS = (
 
 def main() -> None:
     ICON_DIR.mkdir(parents=True, exist_ok=True)
-    for size in (192, 512):
+    for size in (180, 192, 512):
         for svg_name, png_pattern in EXPORTS:
             svg_path = ICON_DIR / svg_name
             png_path = ICON_DIR / png_pattern.format(size=size)
