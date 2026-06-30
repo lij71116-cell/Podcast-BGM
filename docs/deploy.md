@@ -164,6 +164,7 @@ PWA（manifest / SW）随 `npm run build` 自动产出；无需额外 Vercel 配
 | 合成失败 / OOM | Railway 内存调至 512MB–1GB |
 | 数据丢失 | Volume 挂载 `/data`，路径与环境变量一致 |
 | Cookie 未写入 | `DEBUG=false`；Vercel 必须 HTTPS |
+| **登录/注册 404** | Railway 仍为 **V1 旧镜像**（无 `/api/auth/*`）。在 Railway 重新部署 `Podcastflow-BGM` 最新 `main`，并设置 `JWT_SECRET`；部署后 `curl …/health` 应含 `"api_version":"2.0"` |
 | PWA 不生效 | 确认 Vercel 已部署最新 build；清除旧 SW |
 
 ---

@@ -17,6 +17,8 @@ async def health_check(
     response = success_response(
         {
             "status": "ok",
+            "api_version": "2.0",
+            "auth_enabled": True,
             "ffmpeg_available": ffmpeg_ok,
         }
     )

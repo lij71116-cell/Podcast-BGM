@@ -31,6 +31,11 @@ http.interceptors.response.use(
       if (body?.message) {
         return Promise.reject(new Error(body.message))
       }
+      if (status === 404 && url.includes('/auth/')) {
+        return Promise.reject(
+          new Error('认证服务不可用（404）：后端可能尚未部署 V2，请稍后重试或联系管理员'),
+        )
+      }
       if (status === 404 && import.meta.env.VITE_USE_MOCK === 'true') {
         return Promise.reject(
           new Error('接口 Mock 未实现，请刷新页面；汽水音乐真实解析需 VITE_USE_MOCK=false 并登录'),
