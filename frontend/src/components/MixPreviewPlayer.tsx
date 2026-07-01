@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button, Slider } from 'antd'
-import { CaretRightOutlined, PauseOutlined, SoundOutlined } from '@ant-design/icons'
+import { CaretRightOutlined, LoadingOutlined, PauseOutlined, SoundOutlined } from '@ant-design/icons'
+import { MOBILE_AUDIO_ATTRS } from '@/hooks/useMediaSession'
 import './MixPreviewPlayer.css'
 
 interface MixPreviewPlayerProps {
@@ -40,6 +41,36 @@ function syncBgmTime(bgm: HTMLAudioElement, podcastTime: number) {
   bgm.currentTime = podcastTime % bgm.duration
 }
 
+function isTouchPreviewDevice(): boolean {
+  if (typeof window === 'undefined') return false
+  return (
+    /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ||
+    (navigator.maxTouchPoints > 0 && window.matchMedia('(max-width: 1024px)').matches)
+  )
+}
+
+function waitForCanPlay(audio: HTMLAudioElement): Promise<void> {
+  if (audio.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+    return Promise.resolve()
+  }
+  return new Promise((resolve, reject) => {
+    const onReady = () => {
+      cleanup()
+      resolve()
+    }
+    const onError = () => {
+      cleanup()
+      reject(new Error('audio load failed'))
+    }
+    const cleanup = () => {
+      audio.removeEventListener('canplay', onReady)
+      audio.removeEventListener('error', onError)
+    }
+    audio.addEventListener('canplay', onReady, { once: true })
+    audio.addEventListener('error', onError, { once: true })
+  })
+}
+
 export function MixPreviewPlayer({
   podcastId,
   bgmId,
@@ -59,11 +90,18 @@ export function MixPreviewPlayer({
   const [playing, setPlaying] = useState(false)
   const [progress, setProgress] = useState(0)
   const [streamDuration, setStreamDuration] = useState(0)
+  const [streamsReady, setStreamsReady] = useState(false)
+  const [preparing, setPreparing] = useState(false)
 
   const totalDuration = Math.max(
     podcastDurationSec,
     Number.isFinite(streamDuration) && streamDuration > 0 ? streamDuration : 0,
   )
+
+  const pauseAudioElements = useCallback(() => {
+    podcastRef.current?.pause()
+    bgmRef.current?.pause()
+  }, [])
 
   const startBoth = useCallback(async () => {
     const podcast = podcastRef.current
@@ -71,20 +109,33 @@ export function MixPreviewPlayer({
     if (!podcast || !bgm) return
 
     syncBgmTime(bgm, podcast.currentTime)
-    try {
-      await podcast.play()
-      await bgm.play()
-      setPlaying(true)
-    } catch {
-      onError?.('无法自动播放，请点击播放按钮')
-      setPlaying(false)
-    }
-  }, [onError])
 
-  const pauseAudioElements = useCallback(() => {
-    podcastRef.current?.pause()
-    bgmRef.current?.pause()
-  }, [])
+    // iOS / 移动端：必须在同一同步调用栈内触发两路 play()，不能 await 完播客再播 BGM
+    const podcastPlay = podcast.play()
+    const bgmPlay = bgm.play()
+    const [podcastResult, bgmResult] = await Promise.allSettled([podcastPlay, bgmPlay])
+
+    const podcastOk = podcastResult.status === 'fulfilled'
+    const bgmOk = bgmResult.status === 'fulfilled'
+
+    if (podcastOk && bgmOk) {
+      setPlaying(true)
+      return
+    }
+
+    if (podcastOk && !bgmOk) {
+      onError?.('BGM 未能同步播放，请再次点击播放按钮')
+      setPlaying(true)
+      return
+    }
+
+    if (!podcastOk && bgmOk) {
+      bgm.pause()
+    }
+
+    onError?.('无法播放试听，请检查网络后点击播放按钮')
+    setPlaying(false)
+  }, [onError])
 
   useEffect(() => {
     const podcast = podcastRef.current
@@ -131,7 +182,7 @@ export function MixPreviewPlayer({
     }
     const onTimeUpdate = () => {
       setProgress(Math.floor(podcast.currentTime))
-      if (playing && !bgm.paused) {
+      if (playing) {
         syncBgmTime(bgm, podcast.currentTime)
       }
     }
@@ -145,6 +196,14 @@ export function MixPreviewPlayer({
       onError?.('播客音频加载失败，请重新解析播客后再试')
       bgm.pause()
       setPlaying(false)
+      setStreamsReady(false)
+    }
+    const onBgmError = () => {
+      onError?.('BGM 加载失败，请重新上传或选择 BGM 后再试')
+      if (!podcast.paused) {
+        podcast.pause()
+      }
+      setPlaying(false)
     }
 
     podcast.addEventListener('timeupdate', onTimeUpdate)
@@ -152,6 +211,7 @@ export function MixPreviewPlayer({
     podcast.addEventListener('durationchange', onDurationChange)
     podcast.addEventListener('ended', onEnded)
     podcast.addEventListener('error', onPodcastError)
+    bgm.addEventListener('error', onBgmError)
 
     return () => {
       podcast.removeEventListener('timeupdate', onTimeUpdate)
@@ -159,45 +219,49 @@ export function MixPreviewPlayer({
       podcast.removeEventListener('durationchange', onDurationChange)
       podcast.removeEventListener('ended', onEnded)
       podcast.removeEventListener('error', onPodcastError)
+      bgm.removeEventListener('error', onBgmError)
     }
   }, [playing, onError])
 
   useEffect(() => {
-    if (playToken <= 0) {
-      pauseAudioElements()
-      return
-    }
-
     const podcast = podcastRef.current
-    if (!podcast) return
+    const bgm = bgmRef.current
+    if (!podcast || !bgm) return
 
     let cancelled = false
+    setPreparing(true)
+    setStreamsReady(false)
+    setPlaying(false)
+    setProgress(0)
+    podcast.currentTime = 0
+    bgm.currentTime = 0
+    podcast.load()
+    bgm.load()
 
-    const tryAutoPlay = () => {
-      if (cancelled) return
-      podcast.currentTime = 0
-      const bgm = bgmRef.current
-      if (bgm) bgm.currentTime = 0
-      setProgress(0)
-      void startBoth()
-    }
-
-    const onCanPlay = () => tryAutoPlay()
-
-    if (podcast.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
-      tryAutoPlay()
-    } else {
-      podcast.addEventListener('canplay', onCanPlay, { once: true })
-      podcast.load()
-    }
+    void (async () => {
+      try {
+        await Promise.all([waitForCanPlay(podcast), waitForCanPlay(bgm)])
+        if (cancelled) return
+        setStreamsReady(true)
+        setPreparing(false)
+        if (!isTouchPreviewDevice()) {
+          await startBoth()
+        }
+      } catch {
+        if (cancelled) return
+        setPreparing(false)
+        onError?.('试听音频加载失败，请稍后重试')
+      }
+    })()
 
     return () => {
       cancelled = true
-      podcast.removeEventListener('canplay', onCanPlay)
+      pauseAudioElements()
     }
-  }, [playToken, pauseAudioElements, startBoth])
+  }, [playToken, pauseAudioElements, startBoth, onError])
 
   const handleToggle = () => {
+    if (preparing || !streamsReady) return
     if (playing) {
       pauseAudioElements()
       setPlaying(false)
@@ -220,13 +284,14 @@ export function MixPreviewPlayer({
   }
 
   const sliderMax = totalDuration > 0 ? totalDuration : Math.max(progress, 1)
+  const playDisabled = preparing || !streamsReady
 
   return (
     <div className="mix-preview-player">
       <audio
         key={`podcast-${podcastId}-${playToken}`}
         ref={podcastRef}
-        preload="auto"
+        {...MOBILE_AUDIO_ATTRS}
         src={podcastStreamUrl(podcastId)}
         style={{ display: 'none' }}
         aria-hidden
@@ -234,7 +299,7 @@ export function MixPreviewPlayer({
       <audio
         key={`bgm-${bgmId}-${playToken}`}
         ref={bgmRef}
-        preload="auto"
+        {...MOBILE_AUDIO_ATTRS}
         src={bgmStreamUrl(bgmId)}
         style={{ display: 'none' }}
         aria-hidden
@@ -245,13 +310,32 @@ export function MixPreviewPlayer({
             type="primary"
             shape="circle"
             className="mix-preview-player-play-btn"
-            icon={playing ? <PauseOutlined /> : <CaretRightOutlined />}
+            icon={
+              preparing ? (
+                <LoadingOutlined spin />
+              ) : playing ? (
+                <PauseOutlined />
+              ) : (
+                <CaretRightOutlined />
+              )
+            }
             onClick={handleToggle}
-            aria-label={playing ? '暂停试听' : '播放试听'}
+            disabled={playDisabled}
+            aria-label={
+              preparing ? '试听加载中' : playing ? '暂停试听' : '播放试听'
+            }
           />
           <div className="mix-preview-player-meta">
-            <p className="mix-preview-player-title">试听播放中</p>
-            <p className="mix-preview-player-subtitle">完整混音试听 · 音量与倍速可在左侧调整</p>
+            <p className="mix-preview-player-title">
+              {preparing ? '正在加载试听…' : playing ? '试听播放中' : '试听已就绪'}
+            </p>
+            <p className="mix-preview-player-subtitle">
+              {preparing
+                ? '正在缓冲播客与 BGM，请稍候'
+                : streamsReady && !playing && isTouchPreviewDevice()
+                  ? '请点击播放按钮开始混音试听'
+                  : '完整混音试听 · 音量与倍速可在左侧调整'}
+            </p>
           </div>
         </div>
         <span className="mix-preview-player-time">
@@ -273,6 +357,7 @@ export function MixPreviewPlayer({
           max={sliderMax}
           value={Math.min(progress, sliderMax)}
           onChange={handleSeek}
+          disabled={playDisabled}
           tooltip={{ formatter: (v) => formatTime(v ?? 0) }}
         />
       </div>
@@ -284,6 +369,7 @@ export function MixPreviewPlayer({
           max={100}
           value={masterVolume}
           onChange={onMasterVolumeChange}
+          disabled={playDisabled}
           tooltip={{ formatter: (v) => `${v ?? 0}%` }}
         />
         <span className="mix-preview-control-value">{masterVolume}%</span>

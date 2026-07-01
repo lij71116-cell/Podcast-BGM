@@ -24,6 +24,7 @@
   height: 40px !important;
   min-width: 40px !important;
   flex-shrink: 0;
+  touch-action: manipulation;
 }
 
 .mix-preview-player-meta {
