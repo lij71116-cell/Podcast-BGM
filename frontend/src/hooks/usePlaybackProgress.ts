@@ -101,13 +101,21 @@ export function usePlaybackProgress(
   const loadProgress = useCallback(async (): Promise<number> => {
     if (!mixedAudioId) return 0
     if (isMockMode()) {
-      return readMockProgress(mixedAudioId, context, duration)
+      const primary = readMockProgress(mixedAudioId, context, duration)
+      if (primary > 0 || context !== 'global') return primary
+      return readMockProgress(mixedAudioId, 'inline', duration)
     }
     try {
       const data = await getPlaybackProgress(mixedAudioId, context)
-      if (!data) return 0
-      const max = data.duration_seconds ?? duration
-      return Math.min(Math.floor(data.position_seconds), Math.max(max - 1, 0))
+      if (data) {
+        const max = data.duration_seconds ?? duration
+        return Math.min(Math.floor(data.position_seconds), Math.max(max - 1, 0))
+      }
+      if (context !== 'global') return 0
+      const legacy = await getPlaybackProgress(mixedAudioId, 'inline')
+      if (!legacy) return 0
+      const max = legacy.duration_seconds ?? duration
+      return Math.min(Math.floor(legacy.position_seconds), Math.max(max - 1, 0))
     } catch {
       return 0
     }

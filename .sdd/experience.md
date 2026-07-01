@@ -16,6 +16,12 @@
 
 （项目经验将在开发过程中追加）
 
+## 2026-07-01｜详情页播放器与底部栏同步
+
+- **播放失败根因**：InlinePlayer 与 GlobalPlayerBar 各自维护 `<audio>`，双实例争用 Media Session / stream，详情页点击播放易报错
+- **修复**：InlinePlayer 改为 playerStore 控制 UI，仅 GlobalPlayerBar 持有唯一 audio 元素；进度/音量/续播与底部栏共享 `global` 播放记忆
+- **兼容**：`loadProgress` 在 `global` 无记录时回退读取历史 `inline` 进度
+
 ## 2026-06-29｜T-030 E2E 回归
 
 - 删除未注册的 `backend/src/api/routes/session.py`（V2 已切 JWT，mypy 仍扫描该文件会报错）

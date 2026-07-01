@@ -91,6 +91,8 @@ export function GlobalPlayerBar() {
     let cancelled = false
     void loadProgress().then((resumeAt) => {
       if (cancelled || resumeAt <= 0) return
+      // 用户已在详情页拖动进度条时，避免异步续播覆盖手动 seek
+      if (usePlayerStore.getState().progress > 0) return
       setProgress(resumeAt)
       setResumeHint(true)
     })
